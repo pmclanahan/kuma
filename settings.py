@@ -90,7 +90,7 @@ SUMO_LANGUAGES = (
 
 # Accepted locales
 MDN_LANGUAGES = ('en-US', 'de', 'el', 'es', 'fr', 'fy-NL', 'ga-IE', 'hr', 'hu', 'id',
-                 'ja', 'ko', 'nl', 'pl', 'pt-BR', 'pt-PT', 'ro', 'sl', 'sq', 'th', 'zh-CN', 'zh-TW')
+                 'ja', 'ko', 'nl', 'pl', 'pt-BR', 'pt-PT', 'ro', 'sq', 'th', 'zh-CN', 'zh-TW')
 RTL_LANGUAGES = None # ('ar', 'fa', 'fa-IR', 'he')
 
 DEV_POOTLE_PRODUCT_DETAILS_MAP = {
@@ -127,7 +127,9 @@ LANGUAGE_URL_MAP = lazy(lazy_lang_url_map, dict)()
 def lazy_langs():
     from django.conf import settings
     from product_details import product_details
-    langs = DEV_LANGUAGES if (getattr(settings, 'DEV', False) or getattr(settings, 'STAGE', False)) else PROD_LANGUAGES
+    # for bug 664330
+    # langs = DEV_LANGUAGES if (getattr(settings, 'DEV', False) or getattr(settings, 'STAGE', False)) else PROD_LANGUAGES
+    langs = PROD_LANGUAGES
     return dict([(lang.lower(), product_details.languages[lang]['native'])
                 for lang in langs])
 
@@ -137,7 +139,9 @@ LANGUAGE_CHOICES = tuple([(i, LOCALES[i].native) for i in MDN_LANGUAGES])
 # DEKI uses different locale keys
 def lazy_language_deki_map():
     from django.conf import settings
-    langs = DEV_LANGUAGES if (getattr(settings, 'DEV', False) or getattr(settings, 'STAGE', False)) else PROD_LANGUAGES
+    # for bug 664330
+    # langs = DEV_LANGUAGES if (getattr(settings, 'DEV', False) or getattr(settings, 'STAGE', False)) else PROD_LANGUAGES
+    langs = PROD_LANGUAGES
     lang_deki_map = dict([(i, i) for i in langs])
     lang_deki_map['en-US'] = 'en'
     lang_deki_map['zh-CN'] = 'cn'
@@ -164,6 +168,9 @@ ENGAGE_ROBOTS = False
 # Absolute path to the directory that holds media.
 # Example: "/home/media/media.lawrence.com/"
 MEDIA_ROOT = path('media')
+
+# Absolute path to the directory for the humans.txt file.
+HUMANSTXT_ROOT = MEDIA_ROOT
 
 # URL that handles the media served from MEDIA_ROOT. Make sure to use a
 # trailing slash if there is a path component (optional in other cases).
@@ -332,6 +339,9 @@ INSTALLED_APPS = (
     # testing.
     'django_nose',
     'test_utils',
+
+    # other
+    'humans',
 )
 
 TEST_RUNNER = 'test_utils.runner.RadicalTestSuiteRunner'
