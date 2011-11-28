@@ -42,7 +42,7 @@
             </p>
           </li>
           <li class="hentry">
-            <h4 class="entry-title"><a href="{{ devmo_url(_('/en/Apps/For_Web_developers')) }}" rel="bookmark">{{ _('For Web developers') }}</a></h4>
+            <h4 class="entry-title"><a href="{{ devmo_url(_('/en/Apps/For_Web_developers')) }}" rel="bookmark">{{ _('For web developers') }}</a></h4>
             <p class="entry-summary">
             {% trans %}
             If you already develop Web sites or applications, here's how to make them into installable open Web apps.
@@ -50,7 +50,7 @@
             </p>
           </li>
           <li class="hentry">
-            <h4 class="entry-title"><a href="{{ devmo_url(_('/en/Apps/Developing_game_apps')) }}" rel="bookmark">{{ _('For Game Developers') }}</a></h4>
+            <h4 class="entry-title"><a href="{{ devmo_url(_('/en/Apps/Developing_game_apps')) }}" rel="bookmark">{{ _('For game Developers') }}</a></h4>
             <p class="entry-summary">
             {% trans %}
             Want to make a Web app game? Find out about special considerations for games, such as user identity, multi-player interaction, offline use, and in-game purchases.
@@ -62,6 +62,18 @@
             <p class="entry-summary">
             {% trans %}
             Check here for current status and activities of the Mozilla Apps project team.
+            {% endtrans %}
+            </p>
+          </li>
+          <li class="hentry">
+            <h4 class="entry-title">{{ _('Try apps yourself') }}</h4>
+            <p class="entry-summary">
+            {% trans
+                extension_href='https://addons.mozilla.org/firefox/addon/open-web-apps-for-firefox',
+                android_href='https://people.mozilla.com/~anarayanan/Soup.apk',
+                demos_href='https://apps.mozillalabs.com/appdir/'%}
+            To install and run apps, you can install the app runtime <a href="{{ extension_href }}">Firefox extension</a> for desktop systems,
+            or <a href="{{ android_href }}">native Android application</a>. Then try some <a href="{{ demos_href }}">demo apps</a>.
             {% endtrans %}
             </p>
           </li>
