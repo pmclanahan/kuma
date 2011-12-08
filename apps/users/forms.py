@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 
 from tower import ugettext as _, ugettext_lazy as _lazy
 
+from dekicompat.backends import DekiUserBackend
 from sumo.widgets import ImageWidget
 from upload.forms import clean_image_extension
 from upload.utils import check_file_size, FileTooLargeError
@@ -83,6 +84,14 @@ class RegisterForm(forms.ModelForm):
                                           'already exists.'))
         return email
 
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        # check deki for existing user (it needs = in front of name)
+        deki_user = DekiUserBackend.get_deki_user('='+username)
+        if deki_user is not None:
+            raise forms.ValidationError(_('The username you entered already exists.'))
+        return username
+
     def __init__(self,  request=None, *args, **kwargs):
         super(RegisterForm, self).__init__(request, auto_id='id_for_%s',
                                            *args, **kwargs)
@@ -122,6 +131,26 @@ class AuthenticationForm(auth_forms.AuthenticationForm):
                       "enabled. Cookies are required for logging in."))
 
         return self.cleaned_data
+
+
+class PasswordResetForm(auth_forms.PasswordResetForm):
+    """Overrides the default django form.
+    * Checks mindtouch for an email address
+    * Creates django user & profile if needed
+    """
+    def clean_email(self):
+        try:
+            return super(PasswordResetForm, self).clean_email()
+        except forms.ValidationError as e:
+            email = self.cleaned_data["email"]
+            deki_user = DekiUserBackend.get_deki_user_by_email(email)
+            if deki_user is None:
+                raise e
+            else:
+                user = DekiUserBackend.get_or_create_user(deki_user)
+                self.users_cache = User.objects.filter(email__iexact=email)
+                return user.email
+            raise e
 
 
 class ProfileForm(forms.ModelForm):

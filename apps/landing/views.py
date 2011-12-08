@@ -11,7 +11,7 @@ from devmo import (SECTION_USAGE, SECTION_ADDONS, SECTION_APPS, SECTION_MOBILE,
 from feeder.models import Bundle, Feed
 from demos.models import Submission
 from landing.forms import SubscriptionForm
-from funfactory.urlresolvers import reverse
+from sumo.urlresolvers import reverse
 
 
 def home(request):
@@ -74,7 +74,7 @@ def apps_subscription(request):
     form = SubscriptionForm(data=request.POST)
     if form.is_valid():
         responsys.subscribe('APP_DEV', form.cleaned_data['email'], format=form.cleaned_data['format'])
-        messages.success(request, _('Thank you for subscribing to the Apps developer newsletter.'))
+        messages.success(request, _('Thank you for subscribing to the Apps Developer newsletter.'))
         return HttpResponseRedirect(reverse('apps'))
 
     """Web landing page."""
