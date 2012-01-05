@@ -29,6 +29,8 @@ EMAIL_LONG = _lazy(u'Email address is too long (%(show_value)s characters). '
                    'It must be %(limit_value)s characters or less.')
 PASSWD_REQUIRED = _lazy(u'Password is required.')
 PASSWD2_REQUIRED = _lazy(u'Please enter your password twice.')
+PASSWD_UTF8 = _lazy(u'To use this password, you need to initiate a password '
+                    u'reset. Please use the "forgot my password" link below.')
 
 
 class RegisterForm(forms.ModelForm):
@@ -40,7 +42,7 @@ class RegisterForm(forms.ModelForm):
 
     """
     username = forms.RegexField(
-        label=_lazy(u'Username:'), max_length=30, min_length=4,
+        label=_lazy(u'Username'), max_length=30, min_length=4,
         regex=r'^[\w.@+-]+$',
         help_text=_lazy(u'Required. 30 characters or fewer. Letters, digits '
                          'and @/./+/-/_ only.'),
@@ -48,15 +50,15 @@ class RegisterForm(forms.ModelForm):
                         'required': USERNAME_REQUIRED,
                         'min_length': USERNAME_SHORT,
                         'max_length': USERNAME_LONG})
-    email = forms.EmailField(label=_lazy(u'Email address:'),
+    email = forms.EmailField(label=_lazy(u'Email address'),
                              error_messages={'required': EMAIL_REQUIRED,
                                              'min_length': EMAIL_SHORT,
                                              'max_length': EMAIL_LONG})
-    password = forms.CharField(label=_lazy(u'Password:'),
+    password = forms.CharField(label=_lazy(u'Password'),
                                widget=forms.PasswordInput(
                                    render_value=False),
                                error_messages={'required': PASSWD_REQUIRED})
-    password2 = forms.CharField(label=_lazy(u'Repeat password:'),
+    password2 = forms.CharField(label=_lazy(u'Repeat password'),
                                 widget=forms.PasswordInput(
                                     render_value=False),
                                 error_messages={'required': PASSWD2_REQUIRED},
@@ -87,14 +89,46 @@ class RegisterForm(forms.ModelForm):
     def clean_username(self):
         username = self.cleaned_data.get('username')
         # check deki for existing user (it needs = in front of name)
+        deki_user = DekiUserBackend.get_deki_user('=' + username)
+        if deki_user is not None:
+            raise forms.ValidationError(
+                _('The username you entered already exists.'))
+        return username
+
+    def __init__(self,  request=None, *args, **kwargs):
+        super(RegisterForm, self).__init__(request, auto_id='id_for_%s',
+                                           *args, **kwargs)
+
+
+class BrowserIDRegisterForm(forms.ModelForm):
+    """A user registration form that only requires a username, since BrowserID
+    supplies the email address and no password is necessary."""
+    username = forms.RegexField(
+        label=_lazy(u'Username'), max_length=30, min_length=4,
+        regex=r'^[\w.@+-]+$',
+        help_text=_lazy(u'Required. 30 characters or fewer. Letters, digits '
+                         'and @/./+/-/_ only.'),
+        error_messages={'invalid': USERNAME_INVALID,
+                        'required': USERNAME_REQUIRED,
+                        'min_length': USERNAME_SHORT,
+                        'max_length': USERNAME_LONG})
+
+    class Meta(object):
+        model = User
+        fields = ('username',)
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        # check deki for existing user (it needs = in front of name)
         deki_user = DekiUserBackend.get_deki_user('='+username)
         if deki_user is not None:
             raise forms.ValidationError(_('The username you entered already exists.'))
         return username
 
     def __init__(self,  request=None, *args, **kwargs):
-        super(RegisterForm, self).__init__(request, auto_id='id_for_%s',
-                                           *args, **kwargs)
+        super(BrowserIDRegisterForm, self).__init__(request, 
+                                                    auto_id='id_for_%s',
+                                                    *args, **kwargs)
 
 
 class AuthenticationForm(auth_forms.AuthenticationForm):
@@ -115,8 +149,12 @@ class AuthenticationForm(auth_forms.AuthenticationForm):
         password = self.cleaned_data.get('password')
 
         if username and password:
-            self.user_cache = authenticate(username=username,
-                                           password=password)
+            try:
+                self.user_cache = authenticate(username=username,
+                                               password=password)
+            except UnicodeEncodeError:
+                raise forms.ValidationError(PASSWD_UTF8)
+
             if self.user_cache is None:
                 raise forms.ValidationError(
                     _('Please enter a correct username and password. Note '
@@ -205,13 +243,13 @@ class AvatarForm(forms.ModelForm):
 
 class EmailConfirmationForm(forms.Form):
     """A simple form that requires an email address."""
-    email = forms.EmailField(label=_lazy(u'Email address:'))
+    email = forms.EmailField(label=_lazy(u'Email address'))
 
 
 class EmailChangeForm(forms.Form):
     """A simple form that requires an email address and validates that it is
     not the current user's email."""
-    email = forms.EmailField(label=_lazy(u'Email address:'))
+    email = forms.EmailField(label=_lazy(u'Email address'))
 
     def __init__(self, user, *args, **kwargs):
         super(EmailChangeForm, self).__init__(*args, **kwargs)
