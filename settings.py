@@ -37,7 +37,17 @@ DATABASES = {
         'HOST': '',  # Set to empty string for localhost. Not used with sqlite3.
         'PORT': '',  # Set to empty string for default. Not used with sqlite3.
         'OPTIONS': {'init_command': 'SET storage_engine=InnoDB'},
-    }
+    },
+}
+
+MIGRATION_DATABASES = {
+    'wikidb': {
+        'NAME': 'wikidb',
+        'ENGINE': 'django.db.backends.mysql',
+        'HOST': 'localhost',
+        'USER': 'wikiuser',
+        'PASSWORD': 'wikipass',
+    },
 }
 
 DATABASE_ROUTERS = ('multidb.PinningMasterSlaveRouter',)
@@ -858,6 +868,16 @@ CONSTANCE_CONFIG = dict(
         'Space-separated locales for which BrowserID sign-in should be enabled'
     ),
 
+    DEKIWIKI_POST_RETRIES = (
+        6,
+        'Number of time to retry dekiwiki/MindTouch post before giving up.'
+    ),
+    DEKIWIKI_API_RETRY_WAIT = (
+        .5,
+        'How long to wait between dekiwiki/Mindtouch api request retries. '
+        'We typically multiply this value by the retry number so, e.g., '
+        'the 4th retry waits 4*.5 = 2 seconds.'
+    ),
 )
 
 BROWSERID_VERIFICATION_URL = 'https://browserid.org/verify'
