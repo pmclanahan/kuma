@@ -12,6 +12,8 @@ from django.contrib.sites.models import Site
 from django.http import HttpResponseRedirect, Http404
 from django.views.decorators.http import (require_http_methods, require_GET,
                                           require_POST)
+from django.views.decorators.csrf import csrf_exempt
+
 from django.shortcuts import get_object_or_404
 from django.utils.http import base36_to_int
 
@@ -29,11 +31,12 @@ from upload.tasks import _create_image_thumbnail
 from users.backends import Sha256Backend  # Monkey patch User.set_password.
 from users.forms import (ProfileForm, AvatarForm, EmailConfirmationForm,
                          AuthenticationForm, EmailChangeForm,
-                         PasswordResetForm, BrowserIDRegisterForm)
+                         PasswordResetForm, BrowserIDRegisterForm,
+                         EmailReminderForm)
 from users.models import Profile, RegistrationProfile, EmailChange
 from devmo.models import UserProfile
 from dekicompat.backends import DekiUserBackend, MindTouchAPIError
-from users.utils import handle_login, handle_register
+from users.utils import handle_login, handle_register, send_reminder_email
 
 
 SESSION_VERIFIED_EMAIL = getattr(settings, 'BROWSERID_SESSION_VERIFIED_EMAIL',
@@ -77,6 +80,31 @@ def set_browserid_explained(response):
 
 
 @ssl_required
+@login_required
+@require_POST
+def browserid_change_email(request):
+    """Process a submitted BrowserID assertion to change email."""
+    form = BrowserIDForm(data=request.POST)
+    if not form.is_valid():
+        messages.error(request, form.errors)
+        return HttpResponseRedirect(reverse('users.change_email'))
+    result = _verify_browserid(form, request)
+    email = result['email']
+    user = _get_latest_user_with_email(email)
+    if user and user != request.user:
+        messages.error(request, 'That email already belongs to another '
+                       'user.')
+        return HttpResponseRedirect(reverse('users.change_email'))
+    else:
+        user = request.user
+        user.email = email
+        user.save()
+        return HttpResponseRedirect(reverse('devmo_profile_edit',
+                                            args=[user.username, ]))
+
+
+@csrf_exempt
+@ssl_required
 @require_POST
 def browserid_verify(request):
     """Process a submitted BrowserID assertion.
@@ -106,30 +134,14 @@ def browserid_verify(request):
     email = result['email']
     user = None
 
-    # TODO: This user lookup and create stuff probably belongs in the model:
-    # If user is authenticated, change their email
-    if request.user.is_authenticated():
-        user = _get_latest_user_with_email(email)
-        # If a user with the email already exists, don't change
-        if user and user != request.user:
-            messages.error(request, 'That email already belongs to another '
-                           'user.')
-            return set_browserid_explained(
-                HttpResponseRedirect(reverse('users.change_email')))
-        else:
-            user = request.user
-            user.email = email
-            user.save()
-            redirect_to = reverse('devmo_profile_edit', args=[user.username, ])
-    else:
-        # Look for first most recently used Django account, use if found.
-        user = _get_latest_user_with_email(email)
-        # If no Django account, look for a MindTouch account by email.
-        # If found, auto-create the user.
-        if not user:
-            deki_user = DekiUserBackend.get_deki_user_by_email(email)
-            if deki_user:
-                user = DekiUserBackend.get_or_create_user(deki_user)
+    # Look for first most recently used Django account, use if found.
+    user = _get_latest_user_with_email(email)
+    # If no Django account, look for a MindTouch account by email.
+    # If found, auto-create the user.
+    if not user:
+        deki_user = DekiUserBackend.get_deki_user_by_email(email)
+        if deki_user:
+            user = DekiUserBackend.get_or_create_user(deki_user)
 
     # If we got a user from either the Django or MT paths, complete login for
     # Django and MT and redirect.
@@ -168,8 +180,9 @@ def browserid_register(request):
             register_form = BrowserIDRegisterForm(request.POST)
             if register_form.is_valid():
                 try:
-                    # If the registration form is valid, then create a new Django
-                    # user, a new MindTouch user, and link the two together.
+                    # If the registration form is valid, then create a new
+                    # Django user, a new MindTouch user, and link the two
+                    # together.
                     # TODO: This all belongs in model classes
                     username = register_form.cleaned_data['username']
 
@@ -239,9 +252,9 @@ def login(request):
 def logout(request):
     """Log the user out."""
     auth.logout(request)
-    next_url = _clean_next_url(request) if 'next' in request.GET else ''
+    next_url = _clean_next_url(request) or reverse('home')
 
-    resp = HttpResponseRedirect(next_url or reverse('home'))
+    resp = HttpResponseRedirect(next_url)
     resp.delete_cookie('authtoken')
     return resp
 
@@ -300,6 +313,28 @@ def resend_confirmation(request):
             return jingo.render(request,
                                 'users/resend_confirmation_done.html',
                                 {'email': email})
+    else:
+        form = EmailConfirmationForm()
+    return jingo.render(request, 'users/resend_confirmation.html',
+                        {'form': form})
+
+
+def send_email_reminder(request):
+    """Send reminder email."""
+    if request.method == 'POST':
+        form = EmailReminderForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            try:
+                user = User.objects.get(username=username, is_active=True)
+                # TODO: should this be on a model or manager instead?
+                send_reminder_email(user)
+            except User.DoesNotExist:
+                # Don't leak existence of email addresses.
+                pass
+            return jingo.render(request,
+                                'users/send_email_reminder_done.html',
+                                {'username': username})
     else:
         form = EmailConfirmationForm()
     return jingo.render(request, 'users/resend_confirmation.html',
@@ -382,9 +417,6 @@ def edit_profile(request):
                                                 args=[request.user.id]))
     else:  # request.method == 'GET'
         form = ProfileForm(instance=user_profile)
-
-    # TODO: detect timezone automatically from client side, see
-    # http://rocketscience.itteco.org/2010/03/13/automatic-users-timezone-determination-with-javascript-and-django-timezones/
 
     return jingo.render(request, 'users/edit_profile.html',
                         {'form': form, 'profile': user_profile})

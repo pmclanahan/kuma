@@ -253,21 +253,26 @@ class UserDocsActivityFeed(object):
         # If there's no feed data in the object, try getting it.
         if not self._items:
 
-            # Try getting the parsed feed data from cache
-            url = self.feed_url_for_user()
-            cache_key = '%s:%s' % (
-                USER_DOCS_ACTIVITY_FEED_CACHE_PREFIX,
-                hashlib.md5(url).hexdigest())
-            items = cache.get(cache_key)
+            try:
+                # Try getting the parsed feed data from cache
+                url = self.feed_url_for_user()
+                cache_key = '%s:%s' % (
+                    USER_DOCS_ACTIVITY_FEED_CACHE_PREFIX,
+                    hashlib.md5(url).hexdigest())
+                items = cache.get(cache_key)
 
-            # If no cached feed data, try fetching & parsing it.
-            if not items:
-                data = self.fetch_user_feed()
-                parser = UserDocsActivityFeedParser(base_url=self.base_url)
-                parser.parseString(data)
-                items = parser.items
-                cache.set(cache_key, items,
-                          USER_DOCS_ACTIVITY_FEED_CACHE_TIMEOUT)
+                # If no cached feed data, try fetching & parsing it.
+                if not items:
+                    data = self.fetch_user_feed()
+                    parser = UserDocsActivityFeedParser(base_url=self.base_url)
+                    parser.parseString(data)
+                    items = parser.items
+                    cache.set(cache_key, items,
+                              USER_DOCS_ACTIVITY_FEED_CACHE_TIMEOUT)
+
+            except Exception, e:
+                # On error, items isn't just empty, it's False
+                items = False
 
             # We've got feed data now.
             self._items = items
@@ -587,6 +592,16 @@ class Calendar(ModelBase):
                 row['done'] = True
             row['end_date'] = row['end_date'].strftime("%Y-%m-%d")
             row['date'] = row['date'].strftime("%Y-%m-%d")
+            for field_name in ('conference', 'location', 'people', 'description'):
+                # Sometimes we still get here with non-ASCII data;
+                # that will blow up on attempting to save, so we check
+                # the text-based fields to make sure they decode
+                # cleanly as ASCII, and force-decode them as UTF-8 if
+                # they don't.
+                try:
+                    row[field_name].decode('ascii')
+                except UnicodeDecodeError:
+                    row[field_name] = row[field_name].decode('utf-8', 'ignore')
 
             try:
                 event = Event(calendar=self, **row)

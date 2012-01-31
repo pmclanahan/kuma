@@ -16,6 +16,8 @@ users_patterns = patterns('',
         name='users.browserid_verify'),
     url(r'^/browserid_register$', views.browserid_register,
         name='users.browserid_register'),
+    url(r'^/browserid_change_email$', views.browserid_change_email,
+        name='users.browserid_change_email'),
     url(r'^/login$', views.login, name='users.login'),
     url(r'^/logout$', views.logout, name='users.logout'),
     url(r'^/register$', views.register, name='users.register'),
@@ -41,6 +43,8 @@ users_patterns = patterns('',
 
     url(r'^/resendconfirmation$', views.resend_confirmation,
         name='users.resend_confirmation'),
+    url(r'^/sendemailreminder$', views.send_email_reminder,
+        name='users.send_email_reminder'),
 
     # Change email
     url(r'^change_email$', redirect_to, {'url': 'users.change_email'},
